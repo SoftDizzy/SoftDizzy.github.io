@@ -1,0 +1,283 @@
+#include <iostream>
+#include <map>
+#include <string>
+#include <vector>
+#include <windows.h>
+#include <conio.h>
+#include <ctime>
+#include <iomanip>
+using namespace std;
+
+void setColor(int bc = 0, int fc = 7) {
+    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    SetConsoleTextAttribute(hConsole, (bc % 16) * 16 + (fc % 16));
+}
+
+float effect(string moveAt, string targetAt) {
+    float table[15][15] = {
+        {1,1,1,1,1,0.5,1,0,1,1,1,1,1,1,1},
+        {2,1,0.5,0.5,1,2,0.5,0,1,1,1,0.5,0.5,2,1},
+        {1,2,1,1,1,0.5,2,1,1,1,2,0.5,1,1,1},
+        {1,1,1,0.5,0.5,0.5,1,0.5,1,1,2,1,1,1,1},
+        {1,1,0,2,1,2,0.5,1,1,2,0.5,2,1,1,1},
+        {1,0.5,2,1,0.5,1,2,1,2,1,1,1,1,2,1},
+        {1,0.5,0.5,0.5,1,1,1,0.5,0.5,1,2,1,2,1,1},
+        {0,1,1,1,1,1,1,2,1,1,1,1,0.5,1,1},
+        {1,1,1,1,1,0.5,2,1,0.5,0.5,2,1,1,2,0.5},
+        {1,1,1,1,1,2,1,1,2,0.5,0.5,1,1,1,0.5},
+        {1,0.5,0.5,0.5,2,2,0.5,1,0.5,2,0.5,1,1,1,0.5},
+        {1,1,1,1,0,1,1,1,1,2,0.5,0.5,1,1,0.5},
+        {1,2,1,2,1,1,1,1,1,1,1,1,0.5,1,1},
+        {1,1,2,1,2,1,1,1,0.5,0.5,2,1,1,0.5,2},
+        {1,1,1,1,1,1,1,1,1,1,1,1,1,1,2}
+    };
+
+    map<string, int> attrIndex;
+    attrIndex["Normal"] = 0; attrIndex["Fighting"] = 1; attrIndex["Flying"] = 2; attrIndex["Poison"] = 3;
+    attrIndex["Ground"] = 4; attrIndex["Rock"] = 5; attrIndex["Bug"] = 6; attrIndex["Ghost"] = 7;
+    attrIndex["Fire"] = 8; attrIndex["Water"] = 9; attrIndex["Grass"] = 10; attrIndex["Electric"] = 11;
+    attrIndex["Psychic"] = 12; attrIndex["Ice"] = 13; attrIndex["Dragon"] = 14;
+
+    return table[attrIndex[moveAt]][attrIndex[targetAt]];
+}
+
+float Bonus(string moveAttr, string userAttr) {
+    return (moveAttr == userAttr) ? 1.5f : 1.0f;
+}
+
+struct Move {
+    string name, attr;
+    int damage, maxuse;
+    double acc;
+
+    Move(string n = "---", string a = "Normal", int d = 0, double ac = 100.0, int mu = 0)
+        : name(n), attr(a), damage(d), acc(ac), maxuse(mu) {}
+};
+
+struct Pokemon {
+    string name, attr1, attr2;
+    int atk, def, hp, max_hp, speed;
+    vector<Move> moves;
+
+    Pokemon(string n = "", string a1 = "Normal", string a2 = "0", int a = 0, int d = 0, int h = 0, int spd = 0)
+        : name(n), attr1(a1), attr2(a2), atk(a), def(d), hp(h), max_hp(h), speed(spd) {}
+
+    void addMove(Move m) { moves.push_back(m); }
+
+    int calcDamage(Pokemon& target, Move& m) {
+        float multiplier = effect(m.attr, target.attr1);
+        float stab = Bonus(m.attr, attr1);
+        float dmg = ((0.4f * atk / target.def * m.damage) + 2) * multiplier * stab;
+        return static_cast<int>(dmg);
+    }
+
+    bool isAlive() { return hp > 0; }
+
+    void showHPBar() {
+        int bars = (int)((float)hp / max_hp * 20);
+        cout << name << " [" << setw(3) << hp << "/" << setw(3) << max_hp << "] ";
+        for (int i = 0; i < 20; ++i)
+            cout << (i < bars ? "█" : " ");
+        cout << endl;
+    }
+};
+
+
+
+struct Player {
+    string name;
+    vector<Pokemon> pets;
+};
+
+void inputPlayerInfo(Player& p) {
+    cout << "請輸入訓練家名稱: ";
+    cin >> p.name;
+    system("cls");
+}
+
+void displayPokemonList() {
+    cout << "1.皮卡丘  2.妙蛙花  3.水箭龜  4.噴火龍  5.耿鬼\n";
+    cout << "6.暴鯉龍  7.胡地    8.飛天螳螂 9.乘龍    10.快龍\n";
+}
+
+Pokemon Choice(int choice); // forward 宣告（保留）
+
+void selectPokemon(Player& p) {
+    displayPokemonList();
+    cout << p.name << " 請選擇三隻寶可夢（輸入對應編號，用空格分隔）: ";
+    for (int i = 0; i < 3; ++i) {
+        int id;
+        cin >> id;
+        p.pets.push_back(Choice(id));
+    }
+    system("cls");
+}
+
+void battle(Player& p1, Player& p2) {
+    int p1_active = 0, p2_active = 0;
+
+    while (true) {
+        Pokemon& A = p1.pets[p1_active];
+        Pokemon& B = p2.pets[p2_active];
+
+        if (!A.isAlive()) {
+            cout << p1.name << " 的 " << A.name << " 已倒下！\n";
+            p1_active++;
+            if (p1_active >= p1.pets.size()) {
+                cout << p2.name << " 勝利！\n";
+                break;
+            }
+            continue;
+        }
+
+        if (!B.isAlive()) {
+            cout << p2.name << " 的 " << B.name << " 已倒下！\n";
+            p2_active++;
+            if (p2_active >= p2.pets.size()) {
+                cout << p1.name << " 勝利！\n";
+                break;
+            }
+            continue;
+        }
+
+        cout << "\n" << p1.name << " 的寶可夢狀態：\n"; A.showHPBar();
+        cout << "可用招式：\n";
+        for (int i = 0; i < A.moves.size(); ++i)
+            cout << i + 1 << ". " << A.moves[i].name << " (剩餘: " << A.moves[i].maxuse << ")\n";
+        int m1;
+        cout << "選擇招式："; cin >> m1;
+
+        cout << "\n" << p2.name << " 的寶可夢狀態：\n"; B.showHPBar();
+        cout << "可用招式：\n";
+        for (int i = 0; i < B.moves.size(); ++i)
+            cout << i + 1 << ". " << B.moves[i].name << " (剩餘: " << B.moves[i].maxuse << ")\n";
+        int m2;
+        cout << "選擇招式："; cin >> m2;
+
+        Move& moveA = A.moves[m1 - 1];
+        Move& moveB = B.moves[m2 - 1];
+
+        if (moveA.maxuse <= 0 || moveB.maxuse <= 0) {
+            cout << "有招式次數為 0，請重新選擇。\n";
+            continue;
+        }
+
+        if (A.speed >= B.speed) {
+            int dmg = A.calcDamage(B, moveA);
+            B.hp -= dmg;
+            if (B.hp < 0) B.hp = 0;
+            moveA.maxuse--;
+
+            if (B.hp > 0) {
+                dmg = B.calcDamage(A, moveB);
+                A.hp -= dmg;
+                if (A.hp < 0) A.hp = 0;
+                moveB.maxuse--;
+            }
+        } else {
+            int dmg = B.calcDamage(A, moveB);
+            A.hp -= dmg;
+            if (A.hp < 0) A.hp = 0;
+            moveB.maxuse--;
+
+            if (A.hp > 0) {
+                dmg = A.calcDamage(B, moveA);
+                B.hp -= dmg;
+                if (B.hp < 0) B.hp = 0;
+                moveA.maxuse--;
+            }
+        }
+        system("pause");
+        system("cls");
+    }
+}
+
+Pokemon Choice(int choice) {
+    switch (choice) {
+        case 1: {
+            Pokemon p("皮卡丘", "Electric", "0", 55, 40, 35, 90);
+            p.addMove(Move("電光一閃", "Normal", 40, 100, 10));
+            p.addMove(Move("電球", "Electric", 65, 90, 15));
+            p.addMove(Move("十萬伏特", "Electric", 95, 100, 15));
+            return p;
+        }
+        case 2: {
+            Pokemon p("妙蛙花", "Grass", "Poison", 82, 83, 80, 80);
+            p.addMove(Move("日光束", "Grass", 120, 100, 10));
+            p.addMove(Move("飛葉快刀", "Grass", 55, 95, 25));
+            p.addMove(Move("催眠粉", "Grass", 20, 75, 15));
+            return p;
+        }
+        case 3: {
+            Pokemon p("水箭龜", "Water", "0", 83, 100, 79, 75);
+            p.addMove(Move("水炮", "Water", 120, 80, 5));
+            p.addMove(Move("火箭頭槌", "Normal", 100, 100, 15));
+            p.addMove(Move("衝浪", "Water", 95, 100, 15));
+            return p;
+        }
+        case 4: {
+            Pokemon p("噴火龍", "Fire", "Flying", 84, 78, 78, 100);
+            p.addMove(Move("噴射火焰", "Fire", 95, 100, 5));
+            p.addMove(Move("大字爆炎", "Fire", 120, 85, 5));
+            p.addMove(Move("龍之怒", "Dragon", 50, 100, 15));
+            return p;
+        }
+        case 5: {
+            Pokemon p("耿鬼", "Ghost", "Poison", 65, 60, 60, 110);
+            p.addMove(Move("催眠術", "Psychic", 20, 60, 20));
+            p.addMove(Move("精神強念", "Psychic", 90, 100, 10));
+            p.addMove(Move("奇異之光", "Ghost", 20, 100, 10));
+            return p;
+        }
+        case 6: {
+            Pokemon p("暴鯉龍", "Water", "Flying", 125, 79, 95, 81);
+            p.addMove(Move("龍之怒", "Dragon", 50, 100, 10));
+            p.addMove(Move("水炮", "Water", 120, 80, 5));
+            p.addMove(Move("破壞光線", "Normal", 150, 90, 5));
+            return p;
+        }
+        case 7: {
+            Pokemon p("胡地", "Psychic", "0", 50, 45, 55, 120);
+            p.addMove(Move("精神強念", "Psychic", 90, 100, 10));
+            p.addMove(Move("自我再生", "Normal", 20, 20, 20));
+            p.addMove(Move("反射壁", "Psychic", 20, 20, 20));
+            return p;
+        }
+        case 8: {
+            Pokemon p("飛天螳螂", "Bug", "Flying", 110, 80, 70, 105);
+            p.addMove(Move("劍舞", "Normal", 20, 20, 30));
+            p.addMove(Move("捨身衝撞", "Normal", 100, 100, 15));
+            p.addMove(Move("翅膀攻擊", "Flying", 35, 100, 35));
+            return p;
+        }
+        case 9: {
+            Pokemon p("乘龍", "Water", "Ice", 85, 80, 130, 60);
+            p.addMove(Move("水炮", "Water", 120, 80, 5));
+            p.addMove(Move("冰凍光束", "Ice", 95, 100, 10));
+            p.addMove(Move("暴風雪", "Ice", 120, 90, 5));
+            return p;
+        }
+        case 10: {
+            Pokemon p("快龍", "Dragon", "Flying", 134, 95, 91, 80);
+            p.addMove(Move("破壞光線", "Normal", 150, 90, 5));
+            p.addMove(Move("龍之怒", "Dragon", 20, 100, 10));
+            p.addMove(Move("大字爆炎", "Fire", 120, 85, 5));
+            return p;
+        }
+        default:
+            return Pokemon("MissingNo", "Normal", "0", 1, 1, 1, 1);
+    }
+}
+
+int main() {
+    Player p1, p2;
+    inputPlayerInfo(p1);
+    selectPokemon(p1);
+
+    inputPlayerInfo(p2);
+    selectPokemon(p2);
+
+    battle(p1, p2);
+    system("pause");
+    return 0;
+}
